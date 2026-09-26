@@ -2,7 +2,7 @@ import axios from "axios";
 
 // Create central Axios instance pointing to Express backend
 const API = axios.create({
-  baseURL: "http://localhost:5000/api",
+  baseURL: "https://main-project-habit-tracker.onrender.com/api",
 });
 
 // Automatically append Bearer token to request headers if present in local storage

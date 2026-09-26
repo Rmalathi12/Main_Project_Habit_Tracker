@@ -16,8 +16,26 @@ connectDB();
 
 const app = express();
 
-// enable cross-origin resource sharing (cors)
-app.use(cors());
+// enable cross-origin resource sharing (CORS) securely for production and development
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:3000",
+  process.env.FRONTEND_URL, // Your deployed Vercel frontend URL
+].filter(Boolean); // Filters out undefined values if FRONTEND_URL isn't set yet
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, Postman, or server-to-server)
+      if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+        callback(null, true);
+      } else {
+        callback(new Error("Blocked by CORS policy"));
+      }
+    },
+    credentials: true,
+  }),
+);
 
 // middleware to parse incoming JSON request bodies
 app.use(express.json());
@@ -41,6 +59,7 @@ app.use("/api", require("./routes/progressRoutes"));
 app.use("/api/insights", require("./routes/insightsRoutes"));
 // Mount the routes
 app.use("/api/users", userRoutes);
+
 // root endpoint for health check
 app.get("/", (req, res) => {
   res.json({
