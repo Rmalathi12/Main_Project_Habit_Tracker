@@ -16,18 +16,27 @@ connectDB();
 
 const app = express();
 
-// enable cross-origin resource sharing (CORS) securely for production and development
+// enable cross-origin resource sharing (CORS) securely with trailing slash normalization
+const frontendUrl = process.env.FRONTEND_URL
+  ? process.env.FRONTEND_URL.replace(/\/$/, "")
+  : "";
+
 const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:3000",
-  process.env.FRONTEND_URL, // Your deployed Vercel frontend URL
+  frontendUrl,
 ].filter(Boolean); // Filters out undefined values if FRONTEND_URL isn't set yet
 
 app.use(
   cors({
     origin: (origin, callback) => {
       // Allow requests with no origin (like mobile apps, Postman, or server-to-server)
-      if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+      if (!origin) return callback(null, true);
+
+      // Normalize incoming origin by removing any trailing slash
+      const normalizedOrigin = origin.replace(/\/$/, "");
+
+      if (allowedOrigins.includes(normalizedOrigin)) {
         callback(null, true);
       } else {
         callback(new Error("Blocked by CORS policy"));
