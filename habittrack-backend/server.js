@@ -1,22 +1,31 @@
 const dns = require("dns");
-dns.setServers(["1.1.1.1", "8.8.8.8"]); // Forces public DNS resolvers
+dns.setServers(["1.1.1.1", "8.8.8.8"]);
+
 const express = require("express");
 const dotenv = require("dotenv");
+
+// Load environment variables first
+dotenv.config();
+
 const cors = require("cors");
-const userRoutes = require("./routes/userRoutes");
 const rateLimit = require("express-rate-limit");
 const connectDB = require("./config/db");
 const { errorHandler } = require("./middleware/errorMiddleware");
 
-// load environment variables from .env file
-dotenv.config();
+// Import route handlers
+const aiRoutes = require("./routes/aiRoutes");
+const userRoutes = require("./routes/userRoutes");
+const authRoutes = require("./routes/authRoutes");
+const habitRoutes = require("./routes/habitRoutes");
+const trackingRoutes = require("./routes/trackingRoutes");
+const progressRoutes = require("./routes/progressRoutes");
+const insightsRoutes = require("./routes/insightsRoutes");
 
-// connect to mongoDB DB
 connectDB();
 
 const app = express();
 
-// enable cross-origin resource sharing (CORS) securely with trailing slash normalization
+// Configure CORS
 const frontendUrl = process.env.FRONTEND_URL
   ? process.env.FRONTEND_URL.replace(/\/$/, "")
   : "";
@@ -25,17 +34,13 @@ const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:3000",
   frontendUrl,
-].filter(Boolean); // Filters out undefined values if FRONTEND_URL isn't set yet
+].filter(Boolean);
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps, Postman, or server-to-server)
       if (!origin) return callback(null, true);
-
-      // Normalize incoming origin by removing any trailing slash
       const normalizedOrigin = origin.replace(/\/$/, "");
-
       if (allowedOrigins.includes(normalizedOrigin)) {
         callback(null, true);
       } else {
@@ -46,10 +51,9 @@ app.use(
   }),
 );
 
-// middleware to parse incoming JSON request bodies
 app.use(express.json());
 
-// rate limiter: limit requests on auth routes to prevent brute-force attacks (max 20 requests per 15 minutes)
+// Rate limiter for authentication routes
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 20,
@@ -60,16 +64,16 @@ const authLimiter = rateLimit({
   },
 });
 
-// mount all API routes
-app.use("/api/auth", authLimiter, require("./routes/authRoutes"));
-app.use("/api/habits", require("./routes/habitRoutes"));
-app.use("/api/habits", require("./routes/trackingRoutes"));
-app.use("/api", require("./routes/progressRoutes"));
-app.use("/api/insights", require("./routes/insightsRoutes"));
-// Mount the routes
+// API Routes
+app.use("/api", aiRoutes); // Endpoints: POST /api/ai-coach
+app.use("/api/auth", authLimiter, authRoutes);
+app.use("/api/habits", habitRoutes);
+app.use("/api/habits", trackingRoutes);
+app.use("/api", progressRoutes);
+app.use("/api/insights", insightsRoutes);
 app.use("/api/users", userRoutes);
 
-// root endpoint for health check
+// Root health check
 app.get("/", (req, res) => {
   res.json({
     success: true,
@@ -77,12 +81,11 @@ app.get("/", (req, res) => {
   });
 });
 
-// Centralized error-handling middleware (must be last middleware loaded before listen)
+// Error handling middleware
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 
-// Start the server globally
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
