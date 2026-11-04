@@ -3,61 +3,61 @@ const { GoogleGenAI } = require("@google/genai");
 
 const router = express.Router();
 
-// Initialize the Google Gen AI client
+// Initialize the Gemini client using the environment variable
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-// Generation function targeting available flash and pro model aliases
-async function generateSmartAdvice(prompt) {
-  const modelsToTry = [
-    "gemini-2.5-flash",
-    "gemini-2.0-flash",
-    "gemini-1.5-flash",
-    "gemini-1.5-pro",
-  ];
-
-  for (const model of modelsToTry) {
-    try {
-      console.log(`[AI Coach] Attempting generation with model: ${model}`);
-      const response = await ai.models.generateContent({
-        model: model,
-        contents: prompt,
-      });
-
-      if (response && response.text) {
-        return response.text;
-      }
-    } catch (error) {
-      console.warn(
-        `[AI Coach] Model ${model} unavailable (${error.status || error.message}). Trying next...`
-      );
-    }
-  }
-
-  // Failsafe response when models are saturated or rate-limited
-  return "Great effort on staying consistent! Small daily wins build massive long-term habits. Keep checking off your daily goals!";
-}
-
-// Mounted at POST /api/ai-coach
 router.post("/ai-coach", async (req, res) => {
   try {
     const { username, habits } = req.body;
 
-    const prompt = `You are a supportive, motivating AI habit coach. Here is the habit data for user ${username || "User"}: ${JSON.stringify(
-      habits || []
-    )}. Analyze their streaks and consistency, and provide 2-3 short, highly encouraging, and actionable pieces of advice to help them stay on track. Keep the tone friendly and concise.`;
+    const userHabitList = Array.isArray(habits) ? habits : [];
+    const completedHabits = userHabitList.filter((h) => h.completed).length;
+    const totalHabits = userHabitList.length;
 
-    const adviceText = await generateSmartAdvice(prompt);
+    const prompt = `You are a personalized, encouraging AI habit coach. Here is the habit data for ${username || "Malathi"}:
+- Total Habits Today: ${totalHabits}
+- Completed Today: ${completedHabits}
+- Habits Breakdown: ${JSON.stringify(userHabitList)}
 
-    return res.status(200).json({
+Write 2-3 short, highly engaging, and personalized sentences of advice acknowledging their specific habits and consistency. Do not use generic filler.`;
+
+    let adviceText = "";
+
+    try {
+      // Correct SDK call for @google/genai
+      const response = await ai.models.generateContent({
+        model: "gemini-1.5-flash",
+        contents: prompt,
+      });
+
+      // Extract text safely from response
+      adviceText =
+        response.text ||
+        (response.candidates &&
+          response.candidates[0]?.content?.parts?.[0]?.text);
+    } catch (apiErr) {
+      console.error("Gemini API live call error:", apiErr);
+    }
+
+    // If live generation failed, generate a dynamic context-aware response
+    if (!adviceText) {
+      if (completedHabits === totalHabits && totalHabits > 0) {
+        adviceText = `Incredible job today, ${username}! You've completely aced all ${totalHabits} of your habits. Your consistency is building an unstoppable foundation!`;
+      } else {
+        adviceText = `Keep pushing forward, ${username}! You have completed ${completedHabits} out of ${totalHabits} habits today. Stay focused on your remaining daily goals!`;
+      }
+    }
+
+    return res.json({
       success: true,
-      advice: adviceText,
+      advice: adviceText.trim(),
     });
   } catch (error) {
-    console.error("[AI Coach Route Error]:", error);
-    return res.status(200).json({
-      success: true,
+    console.error("AI Coach route error:", error);
+    return res.status(500).json({
+      success: false,
       advice:
-        "Every day is a fresh opportunity to build strong routines. Stay consistent with your active habits and keep moving forward!",
+        "Keep up the great work! Consistency is key to reaching your goals.",
     });
   }
 });
