@@ -10,21 +10,23 @@ router.post("/ai-coach", async (req, res) => {
   try {
     const { username, habits } = req.body;
 
+    // Dynamically resolve display name
+    const displayName = username && username.trim() !== "" ? username : "there";
     const userHabitList = Array.isArray(habits) ? habits : [];
     const completedHabits = userHabitList.filter((h) => h.completed).length;
     const totalHabits = userHabitList.length;
 
-    const prompt = `You are a personalized, encouraging AI habit coach. Here is the habit data for ${username || "Malathi"}:
+    const prompt = `You are a personalized, encouraging AI habit coach. Here is the habit data for ${displayName}:
 - Total Habits Today: ${totalHabits}
 - Completed Today: ${completedHabits}
 - Habits Breakdown: ${JSON.stringify(userHabitList)}
 
-Write 2-3 short, highly engaging, and personalized sentences of advice acknowledging their specific habits and consistency. Do not use generic filler.`;
+Write 2-3 short, highly engaging, and personalized sentences of advice acknowledging their specific habits and consistency. Address them directly by name. Do not use generic filler.`;
 
     let adviceText = "";
 
     try {
-      // Correct SDK call for @google/genai
+      // SDK call for @google/genai
       const response = await ai.models.generateContent({
         model: "gemini-1.5-flash",
         contents: prompt,
@@ -39,12 +41,12 @@ Write 2-3 short, highly engaging, and personalized sentences of advice acknowled
       console.error("Gemini API live call error:", apiErr);
     }
 
-    // If live generation failed, generate a dynamic context-aware response
+    // Dynamic context-aware response if live model call encounters issues
     if (!adviceText) {
       if (completedHabits === totalHabits && totalHabits > 0) {
-        adviceText = `Incredible job today, ${username}! You've completely aced all ${totalHabits} of your habits. Your consistency is building an unstoppable foundation!`;
+        adviceText = `Incredible job today, ${displayName}! You've completely aced all ${totalHabits} of your habits. Your consistency is building an unstoppable foundation!`;
       } else {
-        adviceText = `Keep pushing forward, ${username}! You have completed ${completedHabits} out of ${totalHabits} habits today. Stay focused on your remaining daily goals!`;
+        adviceText = `Keep pushing forward, ${displayName}! You have completed ${completedHabits} out of ${totalHabits} habits today. Stay focused on your remaining daily goals!`;
       }
     }
 
