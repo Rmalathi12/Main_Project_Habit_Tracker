@@ -1,15 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { 
-  ChevronLeft, 
-  ChevronRight, 
-  CheckCircle2 
-} from 'lucide-react';
-import API from '../services/api';
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { ChevronLeft, ChevronRight, CheckCircle2 } from "lucide-react";
+import API from "../services/api";
 
 export default function CalendarView() {
   const [habits, setHabits] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Initialize state with current actual date
+  const [currentDate, setCurrentDate] = useState(new Date());
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -18,7 +17,7 @@ export default function CalendarView() {
 
   const fetchHabits = async () => {
     try {
-      const response = await API.get('/habits');
+      const response = await API.get("/habits");
       let data = [];
       if (Array.isArray(response.data)) {
         data = response.data;
@@ -29,7 +28,7 @@ export default function CalendarView() {
       }
       setHabits(data);
     } catch (err) {
-      console.error('Error fetching habits:', err);
+      console.error("Error fetching habits:", err);
       setHabits([]);
     } finally {
       setLoading(false);
@@ -38,17 +37,47 @@ export default function CalendarView() {
 
   const safeHabitsList = Array.isArray(habits) ? habits : [];
   const totalHabits = safeHabitsList.length;
-  const completedCount = safeHabitsList.filter(h => h && h.completedToday).length;
+  const completedCount = safeHabitsList.filter(
+    (h) => h && h.completedToday,
+  ).length;
 
-  // Days of September 2026 generator
-  const daysInMonth = 30; // September has 30 days
-  const startingDayIndex = 2; // Tue (Sun=0, Mon=1, Tue=2)
-  
+  // Dynamic Month and Year calculations
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth();
+
+  const monthName = currentDate.toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
+
+  // Get real today information
+  const today = new Date();
+  const isCurrentMonth =
+    today.getFullYear() === year && today.getMonth() === month;
+  const todayDateNumber = today.getDate();
+
+  // Month navigation handlers
+  const prevMonth = () => {
+    setCurrentDate(new Date(year, month - 1, 1));
+  };
+
+  const nextMonth = () => {
+    setCurrentDate(new Date(year, month + 1, 1));
+  };
+
+  const goToToday = () => {
+    setCurrentDate(new Date());
+  };
+
+  // Generate days dynamically for the active month
+  const firstDayOfMonth = new Date(year, month, 1).getDay();
+  const daysInCurrentMonth = new Date(year, month + 1, 0).getDate();
+
   const daysArray = [];
-  for (let i = 0; i < startingDayIndex; i++) {
+  for (let i = 0; i < firstDayOfMonth; i++) {
     daysArray.push(null); // empty padding for prior month days
   }
-  for (let d = 1; d <= daysInMonth; d++) {
+  for (let d = 1; d <= daysInCurrentMonth; d++) {
     daysArray.push(d);
   }
 
@@ -69,15 +98,24 @@ export default function CalendarView() {
         <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs mb-8">
           {/* Calendar Header Controls */}
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-slate-900">September 2026</h2>
+            <h2 className="text-xl font-bold text-slate-900">{monthName}</h2>
             <div className="flex items-center gap-2">
-              <button className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-600 cursor-pointer">
+              <button
+                onClick={prevMonth}
+                className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-600 cursor-pointer"
+              >
                 <ChevronLeft className="w-4 h-4" />
               </button>
-              <button className="px-3.5 py-1.5 border border-slate-200 rounded-xl font-semibold text-xs text-slate-700 hover:bg-slate-50 cursor-pointer">
+              <button
+                onClick={goToToday}
+                className="px-3.5 py-1.5 border border-slate-200 rounded-xl font-semibold text-xs text-slate-700 hover:bg-slate-50 cursor-pointer"
+              >
                 Today
               </button>
-              <button className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-600 cursor-pointer">
+              <button
+                onClick={nextMonth}
+                className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-600 cursor-pointer"
+              >
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
@@ -97,18 +135,20 @@ export default function CalendarView() {
           {/* Days Grid */}
           <div className="grid grid-cols-7 gap-3">
             {daysArray.map((dayNum, idx) => {
-              const isToday = dayNum === 25; // September 25, 2026
+              const isToday = isCurrentMonth && dayNum === todayDateNumber;
               return (
                 <div
                   key={idx}
                   className={`h-24 rounded-xl border p-2.5 flex flex-col justify-between transition-all ${
                     isToday
-                      ? 'border-indigo-600 bg-white ring-1 ring-indigo-600 shadow-xs'
-                      : 'border-slate-200/70 bg-white'
+                      ? "border-indigo-600 bg-white ring-1 ring-indigo-600 shadow-xs"
+                      : "border-slate-200/70 bg-white"
                   }`}
                 >
-                  <div className={`text-xs font-bold ${isToday ? 'text-indigo-600' : 'text-slate-700'}`}>
-                    {dayNum || ''}
+                  <div
+                    className={`text-xs font-bold ${isToday ? "text-indigo-600" : "text-slate-700"}`}
+                  >
+                    {dayNum || ""}
                   </div>
                   {isToday && (
                     <div className="flex flex-col items-center justify-center mb-1">
@@ -127,25 +167,35 @@ export default function CalendarView() {
           {/* Legend */}
           <div className="flex items-center gap-6 mt-6 pt-4 border-t border-slate-100 text-xs text-slate-500 font-medium">
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded border border-indigo-600 bg-white"></div> Today
+              <div className="w-3 h-3 rounded border border-indigo-600 bg-white"></div>{" "}
+              Today
             </div>
             <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Completed habits
+              <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Completed
+              habits
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded bg-emerald-500"></div> Progress bar
+              <div className="w-3 h-3 rounded bg-emerald-500"></div> Progress
+              bar
             </div>
           </div>
         </div>
 
         {/* Active Habits Section */}
         <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs">
-          <h3 className="font-bold text-slate-900 text-base mb-4">Active Habits</h3>
+          <h3 className="font-bold text-slate-900 text-base mb-4">
+            Active Habits
+          </h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {safeHabitsList.map((habit, idx) => (
-              <div key={habit._id || idx} className="flex items-center gap-3 p-3 bg-slate-50/80 rounded-xl border border-slate-200/60">
+              <div
+                key={habit._id || idx}
+                className="flex items-center gap-3 p-3 bg-slate-50/80 rounded-xl border border-slate-200/60"
+              >
                 <div className="w-2.5 h-2.5 rounded-full bg-indigo-600"></div>
-                <span className="text-xs font-semibold text-slate-700 truncate">{habit.title}</span>
+                <span className="text-xs font-semibold text-slate-700 truncate">
+                  {habit.title}
+                </span>
               </div>
             ))}
           </div>

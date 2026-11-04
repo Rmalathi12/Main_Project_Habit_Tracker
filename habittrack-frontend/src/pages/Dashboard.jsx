@@ -1,26 +1,52 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { 
-  Lightbulb, 
-  Target, 
-  Flame, 
-  Trophy, 
-  Plus, 
-  CheckCircle2, 
-  Circle 
-} from 'lucide-react';
-import API from '../services/api';
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  Lightbulb,
+  Target,
+  Flame,
+  Trophy,
+  Plus,
+  CheckCircle2,
+  Circle,
+  Sparkles,
+} from "lucide-react";
+import API from "../services/api";
 
 export default function Dashboard() {
   const [habits, setHabits] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // AI Coach States with localStorage persistence
+  const [aiAdvice, setAiAdvice] = useState(() => {
+    return localStorage.getItem("habitCoach_advice") || "";
+  });
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState("");
+
   const navigate = useNavigate();
 
-  const todayDateString = new Date().toLocaleDateString('en-US', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
+  // Save advice to localStorage when updated
+  useEffect(() => {
+    if (aiAdvice) {
+      localStorage.setItem("habitCoach_advice", aiAdvice);
+    }
+  }, [aiAdvice]);
+
+  // Dynamically retrieve user info from localStorage
+  const storedUser = JSON.parse(
+    localStorage.getItem("user") ||
+      localStorage.getItem("userInfo") ||
+      localStorage.getItem("profile") ||
+      "{}",
+  );
+  const currentUsername =
+    storedUser.name || storedUser.username || storedUser.fullName || "Malathi";
+
+  const todayDateString = new Date().toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
   });
 
   useEffect(() => {
@@ -29,7 +55,7 @@ export default function Dashboard() {
 
   const fetchHabits = async () => {
     try {
-      const response = await API.get('/habits');
+      const response = await API.get("/habits");
       let data = [];
       if (Array.isArray(response.data)) {
         data = response.data;
@@ -40,7 +66,7 @@ export default function Dashboard() {
       }
       setHabits(data);
     } catch (err) {
-      console.error('Error fetching habits:', err);
+      console.error("Error fetching habits:", err);
       setHabits([]);
     } finally {
       setLoading(false);
@@ -49,14 +75,16 @@ export default function Dashboard() {
 
   const handleToggleHabit = async (habitId, currentCompletedStatus) => {
     if (!habitId) return;
-    
-    const updatedHabits = habits.map(h => {
+
+    const updatedHabits = habits.map((h) => {
       if (h._id === habitId) {
         const newCompleted = !currentCompletedStatus;
         return {
           ...h,
           completedToday: newCompleted,
-          streak: newCompleted ? (h.streak || 0) + 1 : Math.max(0, (h.streak || 1) - 1),
+          streak: newCompleted
+            ? (h.streak || 0) + 1
+            : Math.max(0, (h.streak || 1) - 1),
         };
       }
       return h;
@@ -66,32 +94,68 @@ export default function Dashboard() {
     try {
       await API.patch(`/habits/${habitId}/toggle`);
     } catch (err) {
-      console.warn('Toggle endpoint returned an error, checking alternate paths...', err);
+      console.warn(
+        "Toggle endpoint returned an error, checking alternate paths...",
+        err,
+      );
       try {
-        await API.patch(`/habits/${habitId}`, { completedToday: !currentCompletedStatus });
+        await API.patch(`/habits/${habitId}`, {
+          completedToday: !currentCompletedStatus,
+        });
       } catch (innerErr) {
-        console.error('All toggle/update attempts failed:', innerErr);
+        console.error("All toggle/update attempts failed:", innerErr);
       }
+    }
+  };
+
+  const handleGetAICoaching = async () => {
+    setAiLoading(true);
+    setAiError("");
+    setAiAdvice("");
+
+    try {
+      const response = await API.post("/ai-coach", {
+        username: currentUsername,
+        habits: habits.map((h) => ({
+          name: h.title || h.name,
+          streak: h.streak || 0,
+          completed: !!h.completedToday,
+        })),
+      });
+
+      if (response.data && response.data.success) {
+        setAiAdvice(response.data.advice);
+      } else {
+        setAiError("Could not generate insights at the moment.");
+      }
+    } catch (err) {
+      console.error("AI Coach frontend error:", err);
+      setAiError("Server high demand or connection error. Please try again.");
+    } finally {
+      setAiLoading(false);
     }
   };
 
   const safeHabitsList = Array.isArray(habits) ? habits : [];
   const totalHabits = safeHabitsList.length;
-  const completedCount = safeHabitsList.filter(h => h && h.completedToday).length;
-  const progressPercentage = totalHabits > 0 ? Math.round((completedCount / totalHabits) * 100) : 0;
-  const totalStreaks = safeHabitsList.reduce((acc, h) => acc + (h?.streak || (h?.completedToday ? 1 : 0)), 0);
+  const completedCount = safeHabitsList.filter(
+    (h) => h && h.completedToday,
+  ).length;
+  const progressPercentage =
+    totalHabits > 0 ? Math.round((completedCount / totalHabits) * 100) : 0;
+  const totalStreaks = safeHabitsList.reduce(
+    (acc, h) => acc + (h?.streak || (h?.completedToday ? 1 : 0)),
+    0,
+  );
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 pb-12">
-      {/* Main Container */}
       <main className="max-w-6xl mx-auto px-6 pt-8">
         <div className="mb-6">
           <h1 className="text-3xl font-black text-slate-900 tracking-tight">
-            Good morning!
+            Good morning, {currentUsername}!
           </h1>
-          <p className="text-slate-500 text-sm mt-0.5">
-            {todayDateString}
-          </p>
+          <p className="text-slate-500 text-sm mt-0.5">{todayDateString}</p>
         </div>
 
         {/* Daily Tip Banner */}
@@ -105,13 +169,14 @@ export default function Dashboard() {
               Daily Tip
             </h4>
             <p className="text-slate-500 text-xs mt-0.5">
-              Prepare your environment: Make good habits easy and bad habits hard.
+              Prepare your environment: Make good habits easy and bad habits
+              hard.
             </p>
           </div>
         </div>
 
         {/* 3 Stat Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
           <div className="bg-white border border-slate-200/80 rounded-2xl p-6 text-center shadow-xs flex flex-col justify-between">
             <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center mx-auto mb-2">
               <Target className="w-5 h-5" />
@@ -120,8 +185,12 @@ export default function Dashboard() {
               <div className="text-3xl font-black text-slate-900 tracking-tight">
                 {completedCount}/{totalHabits}
               </div>
-              <p className="text-xs font-semibold text-slate-700 mt-1">Today's Progress</p>
-              <p className="text-[11px] text-slate-400 mt-0.5">{progressPercentage}% complete</p>
+              <p className="text-xs font-semibold text-slate-700 mt-1">
+                Today's Progress
+              </p>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                {progressPercentage}% complete
+              </p>
             </div>
           </div>
 
@@ -133,8 +202,12 @@ export default function Dashboard() {
               <div className="text-3xl font-black text-slate-900 tracking-tight">
                 {totalStreaks}
               </div>
-              <p className="text-xs font-semibold text-slate-700 mt-1">Total Active Streaks</p>
-              <p className="text-[11px] text-slate-400 mt-0.5">Days of consistency</p>
+              <p className="text-xs font-semibold text-slate-700 mt-1">
+                Total Active Streaks
+              </p>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Days of consistency
+              </p>
             </div>
           </div>
 
@@ -144,12 +217,62 @@ export default function Dashboard() {
             </div>
             <div>
               <div className="text-2xl mt-1">🏆</div>
-              <p className="text-xs font-semibold text-slate-700 mt-1">Achievements</p>
+              <p className="text-xs font-semibold text-slate-700 mt-1">
+                Achievements
+              </p>
               <p className="text-[11px] text-indigo-600 font-medium hover:underline cursor-pointer mt-0.5">
                 View all rewards
               </p>
             </div>
           </div>
+        </div>
+
+        {/* AI Habit Coach Card */}
+        <div className="bg-gradient-to-br from-indigo-900 via-slate-900 to-indigo-950 text-white rounded-2xl p-6 mb-10 shadow-md border border-indigo-800/50">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-indigo-600/30 text-indigo-400 border border-indigo-500/30 flex items-center justify-center shrink-0">
+                <Sparkles className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-base tracking-tight text-white flex items-center gap-2">
+                  AI Habit Coach
+                </h3>
+                <p className="text-indigo-200 text-xs mt-0.5">
+                  Get personalized analysis and motivation based on your active
+                  streaks.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={handleGetAICoaching}
+              disabled={aiLoading}
+              className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm rounded-xl transition-all shadow-sm cursor-pointer disabled:opacity-50 shrink-0"
+            >
+              {aiLoading ? "Analyzing Streaks..." : "Get AI Insights"}
+            </button>
+          </div>
+
+          {aiLoading && (
+            <div className="mt-4 pt-4 border-t border-indigo-800/40 flex items-center gap-2 text-indigo-300 text-xs animate-pulse">
+              <div className="w-4 h-4 rounded-full border-2 border-indigo-400 border-t-transparent animate-spin"></div>
+              Analyzing your habit consistency...
+            </div>
+          )}
+
+          {aiError && (
+            <div className="mt-4 pt-4 border-t border-indigo-800/40 text-rose-400 text-xs bg-rose-950/30 p-3 rounded-lg border border-rose-900/50">
+              {aiError}
+            </div>
+          )}
+
+          {aiAdvice && !aiLoading && (
+            <div className="mt-4 pt-4 border-t border-indigo-800/40">
+              <p className="text-indigo-100 text-sm leading-relaxed whitespace-pre-line font-medium">
+                {aiAdvice}
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Today's Habits Section Header */}
@@ -158,7 +281,7 @@ export default function Dashboard() {
             Today's Habits
           </h2>
           <button
-            onClick={() => navigate('/add-habit')}
+            onClick={() => navigate("/add-habit")}
             className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl font-semibold text-sm transition-all shadow-sm cursor-pointer"
           >
             <Plus className="w-4 h-4" /> Add Habit
@@ -168,12 +291,16 @@ export default function Dashboard() {
         {/* Habit List */}
         <div className="space-y-3">
           {loading ? (
-            <div className="text-center py-12 text-slate-400 text-sm">Loading your habits...</div>
+            <div className="text-center py-12 text-slate-400 text-sm">
+              Loading your habits...
+            </div>
           ) : safeHabitsList.length === 0 ? (
             <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center">
-              <p className="text-slate-500 text-sm mb-3">No habits found in your list.</p>
+              <p className="text-slate-500 text-sm mb-3">
+                No habits found in your list.
+              </p>
               <button
-                onClick={() => navigate('/onboarding/goals')}
+                onClick={() => navigate("/onboarding/goals")}
                 className="text-indigo-600 font-semibold text-sm hover:underline cursor-pointer"
               >
                 Go back to Goal Setup &rarr;
@@ -190,9 +317,9 @@ export default function Dashboard() {
                   key={habit._id || index}
                   onClick={() => handleToggleHabit(habit._id, isDone)}
                   className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all cursor-pointer bg-white ${
-                    isDone 
-                      ? 'border-indigo-600/40 bg-indigo-50/10 shadow-xs' 
-                      : 'border-slate-200/80 hover:border-slate-300 shadow-xs'
+                    isDone
+                      ? "border-indigo-600/40 bg-indigo-50/10 shadow-xs"
+                      : "border-slate-200/80 hover:border-slate-300 shadow-xs"
                   }`}
                 >
                   <div className="flex items-center gap-3.5">
@@ -204,8 +331,10 @@ export default function Dashboard() {
                       )}
                     </button>
                     <div>
-                      <h4 className={`font-semibold text-sm ${isDone ? 'line-through text-slate-400' : 'text-slate-900'}`}>
-                        {habit.title || 'Untitled Habit'}
+                      <h4
+                        className={`font-semibold text-sm ${isDone ? "line-through text-slate-400" : "text-slate-900"}`}
+                      >
+                        {habit.title || habit.name || "Untitled Habit"}
                       </h4>
                       <div className="flex items-center gap-2 mt-0.5">
                         <span className="text-[11px] text-amber-500 font-medium flex items-center gap-1">
@@ -218,7 +347,9 @@ export default function Dashboard() {
                     </div>
                   </div>
 
-                  <div className={`w-2.5 h-2.5 rounded-full ${isDone ? 'bg-indigo-600' : 'bg-amber-400'}`}></div>
+                  <div
+                    className={`w-2.5 h-2.5 rounded-full ${isDone ? "bg-indigo-600" : "bg-amber-400"}`}
+                  ></div>
                 </div>
               );
             })
