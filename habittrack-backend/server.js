@@ -64,8 +64,9 @@ const authLimiter = rateLimit({
   },
 });
 
-// API Routes
-app.use("/api", aiRoutes); // Endpoints: POST /api/ai-coach
+// API Routes (Mounted to support both /api/ai-coach and direct /ai-coach paths)
+app.use("/", aiRoutes); // Endpoint: POST /ai-coach
+app.use("/api", aiRoutes); // Endpoint: POST /api/ai-coach
 app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/habits", habitRoutes);
 app.use("/api/habits", trackingRoutes);
